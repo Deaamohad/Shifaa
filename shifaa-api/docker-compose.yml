@@ -1,0 +1,16 @@
+services:
+  db:
+    image: mariadb:11
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: shifaa
+      MARIADB_USER: shifaa_user
+      MARIADB_PASSWORD: secret
+    ports:
+      - "3306:3306"
+    volumes:
+      - shifaa_db:/var/lib/mysql
+
+volumes:
+  shifaa_db:
