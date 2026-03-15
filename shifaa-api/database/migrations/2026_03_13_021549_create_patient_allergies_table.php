@@ -13,6 +13,9 @@ return new class extends Migration
     {
         Schema::create('patient_allergies', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('patient_id')->constrained('users')->cascadeOnDelete();
+            $table->string('allergy');
+            $table->enum('severity', ['mild', 'moderate', 'severe'])->nullable();
             $table->timestamps();
         });
     }

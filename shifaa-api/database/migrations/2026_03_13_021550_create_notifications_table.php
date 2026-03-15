@@ -13,6 +13,12 @@ return new class extends Migration
     {
         Schema::create('notifications', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+            $table->enum('type', ['appointment_confirmed', 'appointment_reminder', 'lab_results_ready']);
+            $table->string('title');
+            $table->text('body');
+            $table->boolean('is_read')->default(false);
+            $table->timestamp('sent_at')->nullable();
             $table->timestamps();
         });
     }

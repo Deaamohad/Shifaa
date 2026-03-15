@@ -13,6 +13,10 @@ return new class extends Migration
     {
         Schema::create('doctor_profiles', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+            $table->string('specialization');
+            $table->text('bio')->nullable();
+            $table->decimal('consultation_fee', 8, 2);
             $table->timestamps();
         });
     }

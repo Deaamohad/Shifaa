@@ -13,6 +13,13 @@ return new class extends Migration
     {
         Schema::create('lab_results', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('patient_id')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('uploaded_by')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('appointment_id')->nullable()->constrained('appointments')->nullOnDelete();
+            $table->string('title');
+            $table->string('file_path', 500);
+            $table->enum('file_type', ['pdf', 'jpg', 'png']);
+            $table->boolean('notification_sent')->default(false);
             $table->timestamps();
         });
     }
