@@ -74,7 +74,7 @@ class AppointmentController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'doctor' || $appointment->doctor_id !== $user->id) {
+        if ($user->role !== 'receptionist') {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -115,6 +115,25 @@ class AppointmentController extends Controller
 
         return response()->json([
             'message' => 'Appointment cancelled successfully.',
+            'appointment' => $appointment,
+        ]);
+    }
+
+    public function complete(Request $request, Appointment $appointment): JsonResponse
+    {
+        if ($request->user()->role !== 'receptionist') {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        if ($appointment->status !== 'confirmed') {
+            return response()->json(['message' => 'Appointment cannot be completed.'], 422);
+        }
+
+        $appointment->status = 'completed';
+        $appointment->save();
+
+        return response()->json([
+            'message' => 'Appointment completed successfully.',
             'appointment' => $appointment,
         ]);
     }

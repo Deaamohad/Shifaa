@@ -80,10 +80,6 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
-        if ($invoice->receptionist_id !== $user->id) {
-            return response()->json(['message' => 'Forbidden.'], 403);
-        }
-
         if ($invoice->is_paid) {
             return response()->json(['message' => 'Invoice is already paid.'], 422);
         }

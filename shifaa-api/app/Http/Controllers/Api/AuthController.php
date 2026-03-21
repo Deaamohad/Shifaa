@@ -18,13 +18,12 @@ class AuthController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'confirmed', Password::defaults()],
-            'role' => ['required', 'in:admin,doctor,receptionist,patient'],
         ]);
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => $validated['password'],
-            'role' => $validated['role'],
+            'role' => 'patient',
         ]);
         $token = $user->createToken('auth')->plainTextToken;
         return response()->json([
