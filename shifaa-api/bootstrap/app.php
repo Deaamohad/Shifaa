@@ -15,6 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
         ]);
+        $middleware->validateCsrfTokens(except: ['api/*']);
+
+        $middleware->trustHosts(at: ['localhost', '127.0.0.1']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
