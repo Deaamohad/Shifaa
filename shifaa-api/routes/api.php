@@ -23,17 +23,17 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::middleware('role:patient')->post('/appointments', [AppointmentController::class, 'store']);
     Route::middleware('role:receptionist')->patch('/appointments/{appointment}/confirm', [AppointmentController::class, 'confirm']);
     Route::middleware('role:receptionist')->patch('/appointments/{appointment}/complete', [AppointmentController::class, 'complete']);
-    Route::middleware('role:patient,doctor')->patch('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel']);
+    Route::middleware('role:patient,doctor,receptionist')->patch('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel']);
 
-    Route::middleware('role:patient,doctor')->get('/medical-records', [MedicalRecordController::class, 'index']);
-    Route::middleware('role:patient,doctor')->get('/medical-records/{medicalRecord}', [MedicalRecordController::class, 'show']);
+    Route::middleware('role:patient,doctor,admin')->get('/medical-records', [MedicalRecordController::class, 'index']);
+    Route::middleware('role:patient,doctor,admin')->get('/medical-records/{medicalRecord}', [MedicalRecordController::class, 'show']);
     Route::middleware('role:doctor')->post('/appointments/{appointment}/medical-records', [MedicalRecordController::class, 'store']);
     Route::middleware('role:doctor,admin')->get('/patients/{patient}/allergies', [AllergyController::class, 'index']);
     Route::middleware('role:doctor')->post('/patients/{patient}/allergies', [AllergyController::class, 'store']);
 
     Route::middleware('role:doctor,receptionist')->post('/lab-results', [LabResultController::class, 'store']);
-    Route::middleware('role:doctor,patient')->get('/lab-results', [LabResultController::class, 'index']);
-    Route::middleware('role:doctor,patient')->get('/lab-results/{labResult}', [LabResultController::class, 'show']);
+    Route::middleware('role:doctor,patient,admin,receptionist')->get('/lab-results', [LabResultController::class, 'index']);
+    Route::middleware('role:doctor,patient,admin,receptionist')->get('/lab-results/{labResult}', [LabResultController::class, 'show']);
 
     Route::middleware('role:receptionist')->post('/appointments/{appointment}/invoices', [InvoiceController::class, 'store']);
     Route::middleware('role:admin,receptionist,patient')->get('/invoices', [InvoiceController::class, 'index']);

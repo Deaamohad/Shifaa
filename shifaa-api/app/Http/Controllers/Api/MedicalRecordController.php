@@ -14,11 +14,13 @@ class MedicalRecordController extends Controller
     {
         $user = $request->user();
 
-        $query = MedicalRecord::query();
+        $query = MedicalRecord::query()->with(['patient', 'doctor', 'appointment']);
         if ($user->role === 'patient') {
             $query->where('patient_id', $user->id);
         } elseif ($user->role === 'doctor') {
             $query->where('doctor_id', $user->id);
+        } elseif ($user->role === 'admin') {
+            // all records
         } else {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
@@ -40,8 +42,12 @@ class MedicalRecordController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
+        if (!in_array($user->role, ['patient', 'doctor', 'admin'], true)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         return response()->json([
-            'medical_record' => $medicalRecord,
+            'medical_record' => $medicalRecord->load(['patient', 'doctor', 'appointment']),
         ]);
     }
 

@@ -14,7 +14,7 @@ class InvoiceController extends Controller
     {
         $user = $request->user();
 
-        $query = Invoice::query();
+        $query = Invoice::query()->with(['patient', 'appointment']);
         if ($user->role === 'patient') {
             $query->where('patient_id', $user->id);
         } elseif (!in_array($user->role, ['receptionist', 'admin'], true)) {
@@ -39,7 +39,7 @@ class InvoiceController extends Controller
         }
 
         return response()->json([
-            'invoice' => $invoice,
+            'invoice' => $invoice->load(['patient', 'appointment']),
         ]);
     }
 

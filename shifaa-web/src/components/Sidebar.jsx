@@ -24,6 +24,19 @@ export default function Sidebar() {
         <NavLink to="/dashboard" className={linkClass} end>
           Dashboard
         </NavLink>
+        {role === 'patient' && (
+          <>
+            <NavLink to="/medical-records" className={linkClass}>
+              Medical Records
+            </NavLink>
+            <NavLink to="/lab-results" className={linkClass}>
+              Lab Results
+            </NavLink>
+            <NavLink to="/invoices" className={linkClass}>
+              Invoices
+            </NavLink>
+          </>
+        )}
         {(role === 'receptionist' || role === 'admin') && (
           <>
             <NavLink to="/appointments" className={linkClass}>

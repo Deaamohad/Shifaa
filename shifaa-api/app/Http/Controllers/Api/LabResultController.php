@@ -16,13 +16,17 @@ class LabResultController extends Controller
     {
         $user = $request->user();
 
-        $query = LabResult::query();
+        $query = LabResult::query()->with(['patient', 'uploadedBy', 'appointment']);
         if ($user->role === 'patient') {
             $query->where('patient_id', $user->id);
         } elseif ($user->role === 'doctor') {
             $query->whereNotNull('appointment_id')->whereHas('appointment', function ($appointmentQuery) use ($user) {
                 $appointmentQuery->where('doctor_id', $user->id);
             });
+        } elseif ($user->role === 'receptionist') {
+            $query->where('uploaded_by', $user->id);
+        } elseif ($user->role === 'admin') {
+            // all
         } else {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
@@ -44,12 +48,16 @@ class LabResultController extends Controller
             if ($labResult->appointment_id === null || $labResult->appointment->doctor_id !== $user->id) {
                 return response()->json(['message' => 'Forbidden.'], 403);
             }
-        } else {
+        } elseif ($user->role === 'receptionist') {
+            if ($labResult->uploaded_by !== $user->id) {
+                return response()->json(['message' => 'Forbidden.'], 403);
+            }
+        } elseif ($user->role !== 'admin') {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
         return response()->json([
-            'lab_result' => $labResult,
+            'lab_result' => $labResult->load(['patient', 'uploadedBy', 'appointment']),
         ]);
     }
 

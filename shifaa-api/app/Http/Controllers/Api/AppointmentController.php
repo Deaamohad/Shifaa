@@ -95,7 +95,7 @@ class AppointmentController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['patient', 'doctor'], true)) {
+        if (!in_array($user->role, ['patient', 'doctor', 'receptionist'], true)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -105,7 +105,8 @@ class AppointmentController extends Controller
 
         $canCancelAsPatient = $user->role === 'patient' && $appointment->patient_id === $user->id;
         $canCancelAsDoctor = $user->role === 'doctor' && $appointment->doctor_id === $user->id;
-        if (!$canCancelAsPatient && !$canCancelAsDoctor) {
+        $canCancelAsReceptionist = $user->role === 'receptionist';
+        if (!$canCancelAsPatient && !$canCancelAsDoctor && !$canCancelAsReceptionist) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
