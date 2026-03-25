@@ -5,15 +5,13 @@ import { useAuth } from '../hooks/useAuth'
 
 export default function StaffManagement() {
   const { user } = useAuth()
-  if (user?.role !== 'admin') {
-    return <Navigate to="/dashboard" replace />
-  }
-
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
   const [togglingId, setTogglingId] = useState(null)
+  const [roleSavingId, setRoleSavingId] = useState(null)
+  const [roleDrafts, setRoleDrafts] = useState({})
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -25,17 +23,33 @@ export default function StaffManagement() {
   const [bio, setBio] = useState('')
   const [consultationFee, setConsultationFee] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [passwordTarget, setPasswordTarget] = useState(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [doctorRoleTarget, setDoctorRoleTarget] = useState(null)
+  const [doctorSpecialization, setDoctorSpecialization] = useState('')
+  const [doctorConsultationFee, setDoctorConsultationFee] = useState('')
+  const [doctorBio, setDoctorBio] = useState('')
+  const [doctorRoleError, setDoctorRoleError] = useState('')
+  const [doctorRoleSaving, setDoctorRoleSaving] = useState(false)
 
   const fetchStaff = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
       const { data } = await api.get('/staff')
-      setStaff(data.staff || [])
+      const staffList = data.staff || []
+      setStaff(staffList)
+      setRoleDrafts(
+        Object.fromEntries(staffList.map((member) => [member.id, member.role]))
+      )
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to load staff.'
       setError(typeof msg === 'string' ? msg : 'Failed to load staff.')
       setStaff([])
+      setRoleDrafts({})
     } finally {
       setLoading(false)
     }
@@ -111,12 +125,155 @@ export default function StaffManagement() {
     }
   }
 
+  const saveRole = async (member) => {
+    const nextRole = roleDrafts[member.id]
+    if (!nextRole || nextRole === member.role) return
+
+    if (nextRole === 'doctor' && member.role !== 'doctor') {
+      setDoctorRoleTarget(member)
+      setDoctorSpecialization('')
+      setDoctorConsultationFee('')
+      setDoctorBio('')
+      setDoctorRoleError('')
+      return
+    }
+
+    setRoleSavingId(member.id)
+    setError('')
+    try {
+      await api.put(`/staff/${member.id}`, { role: nextRole })
+      await fetchStaff()
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Could not update role.'
+      setError(typeof msg === 'string' ? msg : 'Could not update role.')
+    } finally {
+      setRoleSavingId(null)
+    }
+  }
+
+  const roleOptionsForMember = () => {
+    return ['doctor', 'receptionist', 'admin']
+  }
+
+  const openPasswordReset = (member) => {
+    setPasswordTarget(member)
+    setNewPassword('')
+    setConfirmNewPassword('')
+    setPasswordError('')
+  }
+
+  const closePasswordReset = () => {
+    if (passwordSaving) return
+    setPasswordTarget(null)
+    setNewPassword('')
+    setConfirmNewPassword('')
+    setPasswordError('')
+  }
+
+  const closeDoctorRoleModal = () => {
+    if (doctorRoleSaving) return
+    if (doctorRoleTarget) {
+      setRoleDrafts((prev) => ({
+        ...prev,
+        [doctorRoleTarget.id]: doctorRoleTarget.role,
+      }))
+    }
+    setDoctorRoleTarget(null)
+    setDoctorSpecialization('')
+    setDoctorConsultationFee('')
+    setDoctorBio('')
+    setDoctorRoleError('')
+  }
+
+  const submitDoctorRoleChange = async (e) => {
+    e.preventDefault()
+    if (!doctorRoleTarget) return
+
+    setDoctorRoleError('')
+    const fee = Number(doctorConsultationFee)
+    if (!doctorSpecialization.trim()) {
+      setDoctorRoleError('Specialization is required.')
+      return
+    }
+    if (Number.isNaN(fee) || fee < 0) {
+      setDoctorRoleError('Consultation fee must be a valid number.')
+      return
+    }
+
+    setDoctorRoleSaving(true)
+    setRoleSavingId(doctorRoleTarget.id)
+    setError('')
+    try {
+      await api.put(`/staff/${doctorRoleTarget.id}`, {
+        role: 'doctor',
+        specialization: doctorSpecialization.trim(),
+        consultation_fee: fee,
+        bio: doctorBio.trim() || null,
+      })
+      setDoctorRoleTarget(null)
+      setDoctorSpecialization('')
+      setDoctorConsultationFee('')
+      setDoctorBio('')
+      setDoctorRoleError('')
+      await fetchStaff()
+    } catch (err) {
+      const data = err.response?.data
+      const msg =
+        data?.message ||
+        (data?.errors && Object.values(data.errors).flat().join(' ')) ||
+        'Could not change role to doctor.'
+      setDoctorRoleError(
+        typeof msg === 'string' ? msg : 'Could not change role to doctor.'
+      )
+    } finally {
+      setDoctorRoleSaving(false)
+      setRoleSavingId(null)
+    }
+  }
+
+  const submitPasswordReset = async (e) => {
+    e.preventDefault()
+    if (!passwordTarget) return
+
+    setPasswordError('')
+    if (!newPassword || !confirmNewPassword) {
+      setPasswordError('Enter and confirm the new password.')
+      return
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('Passwords do not match.')
+      return
+    }
+
+    setPasswordSaving(true)
+    try {
+      await api.put(`/staff/${passwordTarget.id}`, {
+        password: newPassword,
+        password_confirmation: confirmNewPassword,
+      })
+      closePasswordReset()
+    } catch (err) {
+      const data = err.response?.data
+      const msg =
+        data?.message ||
+        (data?.errors && Object.values(data.errors).flat().join(' ')) ||
+        'Could not reset password.'
+      setPasswordError(typeof msg === 'string' ? msg : 'Could not reset password.')
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
+
+  if (user?.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Staff management</h1>
         <p className="text-slate-600 mt-1">
-          Create doctor and receptionist accounts and manage active status.
+          Create staff/admin accounts, manage role/access, and reset passwords.
         </p>
       </div>
 
@@ -201,6 +358,7 @@ export default function StaffManagement() {
               >
                 <option value="receptionist">Receptionist</option>
                 <option value="doctor">Doctor</option>
+                <option value="admin">Admin</option>
               </select>
             </div>
             <div>
@@ -305,7 +463,35 @@ export default function StaffManagement() {
                     </td>
                     <td className="px-4 py-3 text-slate-700">{s.email}</td>
                     <td className="px-4 py-3 text-slate-700 capitalize">
-                      {s.role}
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={roleDrafts[s.id] ?? s.role}
+                          onChange={(e) =>
+                            setRoleDrafts((prev) => ({
+                              ...prev,
+                              [s.id]: e.target.value,
+                            }))
+                          }
+                          className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-teal-600"
+                        >
+                          {roleOptionsForMember(s).map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => saveRole(s)}
+                          disabled={
+                            roleSavingId === s.id ||
+                            (roleDrafts[s.id] ?? s.role) === s.role
+                          }
+                          className="rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-medium px-2 py-1 hover:bg-slate-50 disabled:opacity-60"
+                        >
+                          {roleSavingId === s.id ? '…' : 'Save'}
+                        </button>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-600">{s.phone || '—'}</td>
                     <td className="px-4 py-3">
@@ -320,18 +506,27 @@ export default function StaffManagement() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => toggleActive(s)}
-                        disabled={togglingId === s.id}
-                        className="rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-medium px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60"
-                      >
-                        {togglingId === s.id
-                          ? '…'
-                          : s.is_active
-                            ? 'Deactivate'
-                            : 'Activate'}
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleActive(s)}
+                          disabled={togglingId === s.id}
+                          className="rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-medium px-3 py-1.5 hover:bg-slate-50 disabled:opacity-60"
+                        >
+                          {togglingId === s.id
+                            ? '…'
+                            : s.is_active
+                              ? 'Deactivate'
+                              : 'Activate'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openPasswordReset(s)}
+                          className="rounded-lg bg-slate-900 text-white text-xs font-medium px-3 py-1.5 hover:bg-slate-800"
+                        >
+                          Reset password
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -340,6 +535,176 @@ export default function StaffManagement() {
           </div>
         )}
       </div>
+
+      {passwordTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="password-reset-title"
+          onClick={closePasswordReset}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-slate-100">
+              <h2
+                id="password-reset-title"
+                className="text-lg font-semibold text-slate-900"
+              >
+                Reset password
+              </h2>
+              <p className="text-sm text-slate-600 mt-1">
+                {passwordTarget.name} ({passwordTarget.email})
+              </p>
+            </div>
+            <form onSubmit={submitPasswordReset} className="p-5 space-y-3">
+              {passwordError && (
+                <div
+                  className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2"
+                  role="alert"
+                >
+                  {passwordError}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  New password
+                </label>
+                <input
+                  required
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Confirm new password
+                </label>
+                <input
+                  required
+                  type="password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={closePasswordReset}
+                  disabled={passwordSaving}
+                  className="rounded-lg border border-slate-300 bg-white text-slate-800 text-sm font-medium px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordSaving}
+                  className="rounded-lg bg-teal-700 text-white text-sm font-medium px-4 py-2 hover:bg-teal-800 disabled:opacity-60"
+                >
+                  {passwordSaving ? 'Saving…' : 'Save new password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {doctorRoleTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="doctor-role-title"
+          onClick={closeDoctorRoleModal}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-slate-100">
+              <h2
+                id="doctor-role-title"
+                className="text-lg font-semibold text-slate-900"
+              >
+                Promote to doctor
+              </h2>
+              <p className="text-sm text-slate-600 mt-1">
+                {doctorRoleTarget.name} ({doctorRoleTarget.email})
+              </p>
+            </div>
+            <form onSubmit={submitDoctorRoleChange} className="p-5 space-y-3">
+              {doctorRoleError && (
+                <div
+                  className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2"
+                  role="alert"
+                >
+                  {doctorRoleError}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Specialization
+                </label>
+                <input
+                  required
+                  value={doctorSpecialization}
+                  onChange={(e) => setDoctorSpecialization(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Consultation fee
+                </label>
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={doctorConsultationFee}
+                  onChange={(e) => setDoctorConsultationFee(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Bio (optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={doctorBio}
+                  onChange={(e) => setDoctorBio(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={closeDoctorRoleModal}
+                  disabled={doctorRoleSaving}
+                  className="rounded-lg border border-slate-300 bg-white text-slate-800 text-sm font-medium px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={doctorRoleSaving}
+                  className="rounded-lg bg-teal-700 text-white text-sm font-medium px-4 py-2 hover:bg-teal-800 disabled:opacity-60"
+                >
+                  {doctorRoleSaving ? 'Saving…' : 'Save and promote'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

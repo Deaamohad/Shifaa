@@ -39,7 +39,10 @@ class AppointmentController extends Controller
     {
         $user = $request->user();
 
-        $query = Appointment::query();
+        $query = Appointment::query()->with([
+            'patient:id,name,email,phone',
+            'doctor:id,name,email,phone',
+        ]);
         if ($user->role === 'patient') {
             $query->where('patient_id', $user->id);
         } elseif ($user->role === 'doctor') {
@@ -66,7 +69,10 @@ class AppointmentController extends Controller
         }
 
         return response()->json([
-            'appointment' => $appointment,
+            'appointment' => $appointment->load([
+                'patient:id,name,email,phone',
+                'doctor:id,name,email,phone',
+            ]),
         ]);
     }
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rules\Password;
 
 class StaffController extends Controller
@@ -13,7 +14,8 @@ class StaffController extends Controller
     public function index(): JsonResponse
     {
         $staff = User::query()
-            ->whereIn('role', ['doctor', 'receptionist'])
+            ->whereIn('role', ['doctor', 'receptionist', 'admin'])
+            ->with('doctorProfile')
             ->latest()
             ->get();
 
@@ -28,7 +30,7 @@ class StaffController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::defaults()],
-            'role' => ['required', 'in:doctor,receptionist'],
+            'role' => ['required', 'in:doctor,receptionist,admin'],
             'phone' => ['nullable', 'string', 'max:20'],
             'specialization' => ['required_if:role,doctor', 'string', 'max:255'],
             'bio' => ['nullable', 'string'],
@@ -61,22 +63,44 @@ class StaffController extends Controller
 
     public function update(Request $request, User $user): JsonResponse
     {
-        if (!in_array($user->role, ['doctor', 'receptionist'], true)) {
-            return response()->json(['message' => 'Only staff users can be updated from this endpoint.'], 422);
-        }
-
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
             'is_active' => ['sometimes', 'boolean'],
+            'role' => ['sometimes', 'required', 'in:doctor,receptionist,admin'],
+            'password' => ['sometimes', 'required', 'confirmed', Password::defaults()],
+            'specialization' => ['sometimes', 'required', 'string', 'max:255'],
+            'bio' => ['sometimes', 'nullable', 'string'],
+            'consultation_fee' => ['sometimes', 'required', 'numeric', 'min:0'],
         ]);
 
-        $user->fill($validated);
+        $targetRole = $validated['role'] ?? $user->role;
+        $isPromotingToDoctor = $targetRole === 'doctor' && $user->role !== 'doctor';
+        if ($isPromotingToDoctor) {
+            if (empty($validated['specialization']) || !array_key_exists('consultation_fee', $validated)) {
+                return response()->json([
+                    'message' => 'specialization and consultation_fee are required when changing role to doctor.',
+                ], 422);
+            }
+        }
+
+        $user->fill(Arr::only($validated, ['name', 'phone', 'is_active', 'role', 'password']));
         $user->save();
+
+        if ($targetRole === 'doctor') {
+            $profileData = Arr::only($validated, ['specialization', 'bio', 'consultation_fee']);
+            if (!empty($profileData)) {
+                $user->doctorProfile()->updateOrCreate([], [
+                    'specialization' => $profileData['specialization'] ?? $user->doctorProfile?->specialization ?? 'General',
+                    'bio' => $profileData['bio'] ?? $user->doctorProfile?->bio,
+                    'consultation_fee' => $profileData['consultation_fee'] ?? $user->doctorProfile?->consultation_fee ?? 0,
+                ]);
+            }
+        }
 
         return response()->json([
             'message' => 'Staff updated successfully.',
-            'staff' => $user,
+            'staff' => $user->load('doctorProfile'),
         ]);
     }
 }
