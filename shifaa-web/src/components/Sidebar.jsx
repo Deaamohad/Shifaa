@@ -26,6 +26,9 @@ export default function Sidebar() {
         </NavLink>
         {role === 'patient' && (
           <>
+            <NavLink to="/appointments" className={linkClass}>
+              Appointments
+            </NavLink>
             <NavLink to="/medical-records" className={linkClass}>
               Medical Records
             </NavLink>
@@ -46,6 +49,11 @@ export default function Sidebar() {
               Invoices
             </NavLink>
           </>
+        )}
+        {role === 'doctor' && (
+          <NavLink to="/appointments" className={linkClass}>
+            Appointments
+          </NavLink>
         )}
         {(role === 'doctor' || role === 'admin') && (
           <>

@@ -129,6 +129,16 @@ export default function StaffManagement() {
     const nextRole = roleDrafts[member.id]
     if (!nextRole || nextRole === member.role) return
 
+    if (
+      member.id === user?.id &&
+      member.role === 'admin' &&
+      nextRole !== 'admin'
+    ) {
+      setError('You cannot remove your own admin role.')
+      setRoleDrafts((prev) => ({ ...prev, [member.id]: member.role }))
+      return
+    }
+
     if (nextRole === 'doctor' && member.role !== 'doctor') {
       setDoctorRoleTarget(member)
       setDoctorSpecialization('')
@@ -188,6 +198,11 @@ export default function StaffManagement() {
   const submitDoctorRoleChange = async (e) => {
     e.preventDefault()
     if (!doctorRoleTarget) return
+
+    if (doctorRoleTarget.id === user?.id && user?.role === 'admin') {
+      setDoctorRoleError('You cannot demote yourself from admin.')
+      return
+    }
 
     setDoctorRoleError('')
     const fee = Number(doctorConsultationFee)
@@ -472,7 +487,13 @@ export default function StaffManagement() {
                               [s.id]: e.target.value,
                             }))
                           }
-                          className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-teal-600"
+                          disabled={s.id === user?.id}
+                          title={
+                            s.id === user?.id
+                              ? 'You cannot change your own role here'
+                              : undefined
+                          }
+                          className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-teal-600 disabled:bg-slate-100 disabled:text-slate-500"
                         >
                           {roleOptionsForMember(s).map((opt) => (
                             <option key={opt} value={opt}>
@@ -484,6 +505,7 @@ export default function StaffManagement() {
                           type="button"
                           onClick={() => saveRole(s)}
                           disabled={
+                            s.id === user?.id ||
                             roleSavingId === s.id ||
                             (roleDrafts[s.id] ?? s.role) === s.role
                           }
