@@ -3,15 +3,124 @@ import 'package:provider/provider.dart';
 
 import '../services/auth_service.dart';
 import 'appointments_screen.dart';
+import 'invoices_screen.dart';
+import 'lab_results_screen.dart';
+import 'medical_records_screen.dart';
 
-/// Main area after login: patient gets appointments; other roles see a short message.
-class MainShellScreen extends StatelessWidget {
+class MainShellScreen extends StatefulWidget {
   const MainShellScreen({super.key});
+
+  @override
+  State<MainShellScreen> createState() => _MainShellScreenState();
+}
+
+class _MainShellScreenState extends State<MainShellScreen> {
+  int _currentIndex = 0;
+
+  // Each role gets its own tab config.
+  List<_TabItem> _tabs(String role) {
+    switch (role) {
+      case 'patient':
+        return [
+          _TabItem(
+            label: 'Appointments',
+            icon: Icons.calendar_month_outlined,
+            screen: const AppointmentsScreen(),
+          ),
+          _TabItem(
+            label: 'Records',
+            icon: Icons.folder_open_outlined,
+            screen: const MedicalRecordsScreen(),
+          ),
+          _TabItem(
+            label: 'Lab Results',
+            icon: Icons.science_outlined,
+            screen: const LabResultsScreen(),
+          ),
+          _TabItem(
+            label: 'Invoices',
+            icon: Icons.receipt_long_outlined,
+            screen: const InvoicesScreen(),
+          ),
+        ];
+      case 'doctor':
+        return [
+          _TabItem(
+            label: 'Schedule',
+            icon: Icons.calendar_today_outlined,
+            screen: const AppointmentsScreen(),
+          ),
+          _TabItem(
+            label: 'Records',
+            icon: Icons.folder_open_outlined,
+            screen: const MedicalRecordsScreen(),
+          ),
+          _TabItem(
+            label: 'Lab Results',
+            icon: Icons.science_outlined,
+            screen: const LabResultsScreen(),
+          ),
+        ];
+      case 'receptionist':
+        return [
+          _TabItem(
+            label: 'Appointments',
+            icon: Icons.calendar_month_outlined,
+            screen: const AppointmentsScreen(),
+          ),
+          _TabItem(
+            label: 'Lab Results',
+            icon: Icons.science_outlined,
+            screen: const LabResultsScreen(),
+          ),
+          _TabItem(
+            label: 'Invoices',
+            icon: Icons.receipt_long_outlined,
+            screen: const InvoicesScreen(),
+          ),
+        ];
+      case 'admin':
+        return [
+          _TabItem(
+            label: 'Appointments',
+            icon: Icons.calendar_month_outlined,
+            screen: const AppointmentsScreen(),
+          ),
+          _TabItem(
+            label: 'Records',
+            icon: Icons.folder_open_outlined,
+            screen: const MedicalRecordsScreen(),
+          ),
+          _TabItem(
+            label: 'Lab Results',
+            icon: Icons.science_outlined,
+            screen: const LabResultsScreen(),
+          ),
+          _TabItem(
+            label: 'Invoices',
+            icon: Icons.receipt_long_outlined,
+            screen: const InvoicesScreen(),
+          ),
+        ];
+      default:
+        return [
+          _TabItem(
+            label: 'Appointments',
+            icon: Icons.calendar_month_outlined,
+            screen: const AppointmentsScreen(),
+          ),
+        ];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     final role = auth.role ?? '';
+    final tabs = _tabs(role);
+
+    // Clamp index when tabs change on role switch (edge case).
+    final safeIndex = _currentIndex.clamp(0, tabs.length - 1);
 
     return Scaffold(
       appBar: AppBar(
@@ -22,9 +131,21 @@ class MainShellScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Center(
-              child: Text(
-                auth.user?['name']?.toString() ?? '',
-                style: const TextStyle(fontSize: 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    auth.user?['name']?.toString() ?? '',
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                  Text(
+                    role,
+                    style: const TextStyle(
+                        fontSize: 11, color: Colors.white70),
+                  ),
+                ],
               ),
             ),
           ),
@@ -35,29 +156,35 @@ class MainShellScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: role == 'patient'
-          ? const AppointmentsScreen()
-          : Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Signed in as ${role.isEmpty ? 'user' : role}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                      textAlign: TextAlign.center,
+      body: tabs[safeIndex].screen,
+      bottomNavigationBar: tabs.length > 1
+          ? NavigationBar(
+              selectedIndex: safeIndex,
+              onDestinationSelected: (i) =>
+                  setState(() => _currentIndex = i),
+              indicatorColor: const Color(0xFF0F766E).withValues(alpha: 0.15),
+              destinations: tabs
+                  .map(
+                    (t) => NavigationDestination(
+                      icon: Icon(t.icon),
+                      label: t.label,
                     ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'This build focuses on the patient flow (appointments). '
-                      'Use a patient account to book and manage visits.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                  )
+                  .toList(),
+            )
+          : null,
     );
   }
+}
+
+class _TabItem {
+  const _TabItem({
+    required this.label,
+    required this.icon,
+    required this.screen,
+  });
+
+  final String label;
+  final IconData icon;
+  final Widget screen;
 }

@@ -56,6 +56,10 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'Invoice can be created only after appointment is completed.'], 422);
         }
 
+        if (Invoice::where('appointment_id', $appointment->id)->exists()) {
+            return response()->json(['message' => 'An invoice already exists for this appointment.'], 422);
+        }
+
         $invoice = Invoice::create([
             'appointment_id' => $appointment->id,
             'patient_id' => $appointment->patient_id,

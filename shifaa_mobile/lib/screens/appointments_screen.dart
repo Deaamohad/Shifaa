@@ -55,7 +55,11 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.response?.data['message']?.toString() ?? 'Cancel failed')),
+          SnackBar(content: Text(
+            e.response?.data is Map
+                ? (e.response!.data as Map)['message']?.toString() ?? 'Cancel failed'
+                : 'Cancel failed',
+          )),
         );
       }
     }
@@ -69,7 +73,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       return;
     }
     final first = _doctors.first as Map<String, dynamic>;
-    int? doctorId = (first['id'] as num).toInt();
+    int? doctorId = int.tryParse(first['id']?.toString() ?? '');
     final date = await showDatePicker(
       context: context,
       firstDate: DateTime.now(),
@@ -114,7 +118,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
                             as Map<String, dynamic>?;
                         final s = spec?['specialization'] as String?;
                         return DropdownMenuItem<int>(
-                          value: (m['id'] as num).toInt(),
+                          value: int.tryParse(m['id']?.toString() ?? '') ?? 0,
                           child: Text(s != null ? '$name · $s' : name),
                         );
                       }).toList(),
@@ -251,7 +255,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
           else
             ..._appointments.map((raw) {
               final a = raw as Map<String, dynamic>;
-              final id = a['id'] as int;
+              final id = int.tryParse(a['id']?.toString() ?? '') ?? 0;
               final status = a['status'] as String? ?? '';
               final when = a['scheduled_at'] != null
                   ? DateFormat.yMMMd().add_jm().format(DateTime.parse(a['scheduled_at'].toString()).toLocal())

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import api from '../api/axios'
 import { AuthContext } from './authContext'
 
 export function AuthProvider({ children }) {
@@ -27,6 +28,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(() => {
+    api.post('/logout').catch(() => {})
     setUser(null)
     setToken(null)
     localStorage.removeItem('token')
