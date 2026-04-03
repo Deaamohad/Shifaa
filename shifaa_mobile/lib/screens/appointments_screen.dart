@@ -17,6 +17,7 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   List<dynamic> _doctors = [];
   bool _loading = true;
   String? _error;
+  final Set<int> _busy = {};
   @override
   void initState() {
     super.initState();
@@ -47,23 +48,31 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
     }
   }
 
-  Future<void> _cancel(int id) async {
+  Future<void> _action(int id, String endpoint, String errorFallback) async {
+    if (_busy.contains(id)) return;
+    setState(() => _busy.add(id));
     final auth = context.read<AuthService>();
     try {
-      await auth.dio.patch('/appointments/$id/cancel');
+      await auth.dio.patch(endpoint);
       await _load();
     } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(
             e.response?.data is Map
-                ? (e.response!.data as Map)['message']?.toString() ?? 'Cancel failed'
-                : 'Cancel failed',
+                ? (e.response!.data as Map)['message']?.toString() ?? errorFallback
+                : errorFallback,
           )),
         );
       }
+    } finally {
+      if (mounted) setState(() => _busy.remove(id));
     }
   }
+
+  void _cancel(int id) => _action(id, '/appointments/$id/cancel', 'Cancel failed');
+  void _confirm(int id) => _action(id, '/appointments/$id/confirm', 'Confirm failed');
+  void _complete(int id) => _action(id, '/appointments/$id/complete', 'Complete failed');
 
   Future<void> _openBookDialog() async {
     if (_doctors.isEmpty) {
@@ -208,7 +217,10 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
-    final isPatient = auth.role == 'patient';
+    final role = auth.role ?? '';
+    final isPatient = role == 'patient';
+    final isDoctor = role == 'doctor';
+    final isStaff = role == 'receptionist' || role == 'admin';
 
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
@@ -258,27 +270,93 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
               final id = int.tryParse(a['id']?.toString() ?? '') ?? 0;
               final status = a['status'] as String? ?? '';
               final when = a['scheduled_at'] != null
-                  ? DateFormat.yMMMd().add_jm().format(DateTime.parse(a['scheduled_at'].toString()).toLocal())
+                  ? DateFormat.yMMMd().add_jm().format(
+                      DateTime.parse(a['scheduled_at'].toString()).toLocal())
                   : '—';
-              final patient = _name(a['patient'], '#${a['patient_id']}');
-              final doctor = _name(a['doctor'], '#${a['doctor_id']}');
-              final canCancel = isPatient && (status == 'pending' || status == 'confirmed');
+              final patientName = _name(a['patient'], '#${a['patient_id']}');
+              final doctorName = _name(a['doctor'], '#${a['doctor_id']}');
+              final isBusy = _busy.contains(id);
+              final cancellable = status == 'pending' || status == 'confirmed';
+
+              Widget? trailing;
+
+              if (isBusy) {
+                trailing = const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                );
+              } else if (isStaff) {
+                final actions = <PopupMenuEntry<String>>[];
+                if (status == 'pending') {
+                  actions.add(const PopupMenuItem(
+                      value: 'confirm', child: Text('Confirm')));
+                }
+                if (status == 'confirmed') {
+                  actions.add(const PopupMenuItem(
+                      value: 'complete', child: Text('Complete')));
+                }
+                if (cancellable) {
+                  actions.add(const PopupMenuItem(
+                      value: 'cancel',
+                      child: Text('Cancel',
+                          style: TextStyle(color: Colors.red))));
+                }
+                if (actions.isNotEmpty) {
+                  trailing = PopupMenuButton<String>(
+                    onSelected: (v) {
+                      if (v == 'confirm') _confirm(id);
+                      if (v == 'complete') _complete(id);
+                      if (v == 'cancel') _cancel(id);
+                    },
+                    itemBuilder: (_) => actions,
+                  );
+                }
+              } else if ((isPatient || isDoctor) && cancellable) {
+                trailing = TextButton(
+                  onPressed: () => _cancel(id),
+                  child: const Text('Cancel'),
+                );
+              }
+
+              Color? statusColor;
+              if (status == 'confirmed') statusColor = Colors.blue.shade700;
+              if (status == 'completed') statusColor = Colors.green.shade700;
+              if (status == 'cancelled') statusColor = Colors.red.shade400;
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
                   title: Text(
-                    isPatient ? doctor : '$patient → $doctor',
+                    isPatient ? doctorName : '$patientName → $doctorName',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  subtitle: Text('$when · ${status.toUpperCase()}'),
-                  trailing: canCancel
-                      ? TextButton(
-                          onPressed: () => _cancel(id),
-                          child: const Text('Cancel'),
-                        )
-                      : null,
+                  subtitle: Row(
+                    children: [
+                      Expanded(child: Text(when)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: (statusColor ?? Colors.grey.shade600)
+                              .withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: statusColor ?? Colors.grey.shade400),
+                        ),
+                        child: Text(
+                          status.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: statusColor ?? Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  trailing: trailing,
                 ),
               );
             }),
