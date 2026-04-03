@@ -15,6 +15,8 @@ class AppointmentsScreen extends StatefulWidget {
 class _AppointmentsScreenState extends State<AppointmentsScreen> {
   List<dynamic> _appointments = [];
   List<dynamic> _doctors = [];
+  // appointmentId → medical record map (doctors only)
+  Map<int, Map<String, dynamic>> _recordByAppt = {};
   bool _loading = true;
   String? _error;
   final Set<int> _busy = {};
@@ -36,6 +38,15 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
       if (auth.role == 'patient') {
         final d = await auth.dio.get<Map<String, dynamic>>('/doctors');
         _doctors = List<dynamic>.from(d.data?['doctors'] as List? ?? []);
+      }
+      if (auth.role == 'doctor') {
+        final mr = await auth.dio.get<Map<String, dynamic>>('/medical-records');
+        final list = List<dynamic>.from(mr.data?['medical_records'] as List? ?? []);
+        _recordByAppt = {
+          for (final r in list)
+            if (r is Map<String, dynamic>)
+              (int.tryParse(r['appointment_id']?.toString() ?? '') ?? -1): r,
+        };
       }
     } on DioException catch (e) {
       _error = e.response?.data?.toString() ?? e.message ?? 'Failed to load';
@@ -73,6 +84,150 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
   void _cancel(int id) => _action(id, '/appointments/$id/cancel', 'Cancel failed');
   void _confirm(int id) => _action(id, '/appointments/$id/confirm', 'Confirm failed');
   void _complete(int id) => _action(id, '/appointments/$id/complete', 'Complete failed');
+
+  Future<void> _openNotesDialog(int apptId, Map<String, dynamic>? existing) async {
+    final symptomsCtrl =
+        TextEditingController(text: existing?['symptoms']?.toString() ?? '');
+    final diagnosisCtrl =
+        TextEditingController(text: existing?['diagnosis']?.toString() ?? '');
+    final prescriptionCtrl =
+        TextEditingController(text: existing?['prescription']?.toString() ?? '');
+    final notesCtrl =
+        TextEditingController(text: existing?['notes']?.toString() ?? '');
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetCtx) {
+        var saving = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      existing != null ? 'Edit visit notes' : 'Add visit notes',
+                      style: Theme.of(ctx).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 20),
+                    _notesField(symptomsCtrl, 'Symptoms'),
+                    const SizedBox(height: 12),
+                    _notesField(diagnosisCtrl, 'Diagnosis'),
+                    const SizedBox(height: 12),
+                    _notesField(prescriptionCtrl, 'Prescription'),
+                    const SizedBox(height: 12),
+                    _notesField(notesCtrl, 'Additional notes'),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed:
+                              saving ? null : () => Navigator.pop(sheetCtx),
+                          child: const Text('Discard'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F766E)),
+                          onPressed: saving
+                              ? null
+                              : () async {
+                                  setLocal(() => saving = true);
+                                  final auth = context.read<AuthService>();
+                                  try {
+                                    await auth.dio.post(
+                                      '/appointments/$apptId/medical-records',
+                                      data: {
+                                        'symptoms': symptomsCtrl.text.trim(),
+                                        'diagnosis': diagnosisCtrl.text.trim(),
+                                        'prescription':
+                                            prescriptionCtrl.text.trim(),
+                                        'notes': notesCtrl.text.trim(),
+                                      },
+                                    );
+                                    if (sheetCtx.mounted) {
+                                      Navigator.pop(sheetCtx);
+                                    }
+                                    await _load();
+                                  } on DioException catch (e) {
+                                    final msg = e.response?.data is Map
+                                        ? (e.response!.data as Map)['message']
+                                                ?.toString() ??
+                                            'Save failed'
+                                        : 'Save failed';
+                                    if (ctx.mounted) {
+                                      ScaffoldMessenger.of(ctx)
+                                          .showSnackBar(SnackBar(
+                                              content: Text(msg)));
+                                    }
+                                  } finally {
+                                    if (ctx.mounted) {
+                                      setLocal(() => saving = false);
+                                    }
+                                  }
+                                },
+                          child: saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Text('Save'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    symptomsCtrl.dispose();
+    diagnosisCtrl.dispose();
+    prescriptionCtrl.dispose();
+    notesCtrl.dispose();
+  }
+
+  Widget _notesField(TextEditingController ctrl, String label) =>
+      TextField(
+        controller: ctrl,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          alignLabelWithHint: true,
+        ),
+        maxLines: 3,
+        minLines: 1,
+        textCapitalization: TextCapitalization.sentences,
+      );
 
   Future<void> _openBookDialog() async {
     if (_doctors.isEmpty) {
@@ -280,11 +435,18 @@ class _AppointmentsScreenState extends State<AppointmentsScreen> {
 
               Widget? trailing;
 
+              final existingRecord = _recordByAppt[id];
+
               if (isBusy) {
                 trailing = const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
+                );
+              } else if (isDoctor && status == 'completed') {
+                trailing = TextButton(
+                  onPressed: () => _openNotesDialog(id, existingRecord),
+                  child: Text(existingRecord != null ? 'Edit notes' : 'Add notes'),
                 );
               } else if (isStaff) {
                 final actions = <PopupMenuEntry<String>>[];
